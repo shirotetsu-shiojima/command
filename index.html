@@ -92,7 +92,7 @@
 </head>
 <body>
 
-  <h1>特殊能力コマンド生成＆説明ツール</h1>
+  <h1>戦闘コマンド生成＆説明ツール</h1>
 
   <div class="form-group">
     <div class="field">
@@ -169,7 +169,7 @@
         idx1: { name: "対象", options: ["0:自分", "1:相手"] },
         idx2: { name: "メニュー", options: ["0:ステータス参照", "1:場所", "2:相手のID"] },
         idx3: { name: "対象ステータス", options: ["0:体力", "1:パワー", "2:ガード", "3:コミュ力", "4:学力", "5:IQ", "6:合計"], dependsOn: { idx: 2, val: ["0"] } },
-        idx4: { name: "条件設定数値", options: ["0:自分の数値", "1以上:カスタム数値"], dependsOn: { idx: 2, val: ["0"] } },
+        idx4: { name: "条件設定数値", type: "custom_num", options: ["0:自分の数値", "custom:カスタム数値"], dependsOn: { idx: 2, val: ["0"] } },
         idx5: { name: "条件", options: ["0:以上", "1:以下", "2:超過", "3:未満", "4:等しい"], dependsOn: { idx: 2, val: ["0"] } },
         idx6: { name: "リスト", type: "list_text", dependsOn: { idx: 2, val: ["1", "2"] } },
         idx7: { name: "条件", options: ["0:リストに含まれる", "1:リストに含まれない"], dependsOn: { idx: 2, val: ["1", "2"] } },
@@ -199,7 +199,7 @@
         label.textContent = `idx${i} (${item.name}):`;
         fieldDiv.appendChild(label);
 
-        if (item.options) {
+        if (item.options && item.type !== 'custom_num') {
           const select = document.createElement('select');
           select.id = `input-idx${i}`;
           select.onchange = () => { handleInputChange(type); generateAll(); };
@@ -213,6 +213,33 @@
           });
 
           fieldDiv.appendChild(select);
+        } else if (item.type === 'custom_num') { // 修正点: カスタム数値対応
+          const select = document.createElement('select');
+          select.id = `input-idx${i}`;
+          item.options.forEach(opt => {
+            const el = document.createElement('option');
+            const val = opt.split(':')[0];
+            el.value = val;
+            el.textContent = (val === 'custom') ? '1以上:カスタム数値' : opt;
+            select.appendChild(el);
+          });
+          select.onchange = function() {
+            const numInput = document.getElementById(`input-idx${i}-custom`);
+            numInput.style.display = (this.value === 'custom') ? 'inline-block' : 'none';
+            generateAll();
+          };
+          fieldDiv.appendChild(select);
+
+          const numInput = document.createElement('input');
+          numInput.type = 'number';
+          numInput.id = `input-idx${i}-custom`;
+          numInput.value = 1;
+          numInput.min = 1;
+          numInput.style.display = 'none';
+          numInput.style.width = '80px';
+          numInput.style.marginLeft = '10px';
+          numInput.oninput = () => generateAll();
+          fieldDiv.appendChild(numInput);
         } else if (item.type === 'number') {
           const input = document.createElement('input');
           input.type = 'number';
@@ -326,7 +353,7 @@
           const elem = document.getElementById(`input-idx${i}`);
           const raw = elem ? elem.value.trim() : '';
           val = raw ? `(${raw})` : '()';
-        } else if (item.type === 'custom_turn') {
+        } else if (item.type === 'custom_turn' || item.type === 'custom_num') { // 修正点: custom_num の値取得を追加
           const sel = document.getElementById(`input-idx${i}`).value;
           if (sel === 'custom') {
             val = document.getElementById(`input-idx${i}-custom`).value || '1';
@@ -350,136 +377,131 @@
       document.getElementById('description').textContent = buildDescription(arr);
     }
 
-    // --- 説明文組み立てロジック ---
-    // --- 説明文組み立てロジック ---
-function buildDescription(arr) {
-  const type = arr[0];
-  const targetMap = { '0': '自分', '1': '相手', '2': '両方' };
-  
-  // 共通の末尾文章
-  const prob = arr[7];
-  const condVal = arr[8];
-  const turnVal = arr[11];
-  
-  let suffixStr = "";
-  if (condVal === '1') {
-    suffixStr = `常に${prob}%の確率で発動。`;
-  } else {
-    const condMap = { '0': 'メーター満タン時', '2': 'HPに応じる条件' };
-    const condText = condMap[condVal] || '';
-    const turnText = (turnVal === '0') ? '永続的に' : `${turnVal}ターン分`;
-    suffixStr = `${condText}に${prob}%の確率で${turnText}発動。`;
-  }
-
-  // --- 種別ごとの主文作成 ---
-  if (type === '1') { // 能力調整
-    const target = targetMap[arr[1]] || '';
-    const statMap = { '0': '体力', '1': 'パワー', '2': 'ガード', '3': 'コミュ力', '4': '学力', '5': 'IQ', '6': '全ステータス' };
-    const stat = statMap[arr[2]] || '';
-    
-    let mainEffect = "";
-    if (arr[3] === '4') { // 相手参照
-      const refStatMap = { '0': '体力', '1': 'パワー', '2': 'ガード', '3': 'コミュ力', '4': '学力', '5': 'IQ', '6': '前ターンのダメージ量' };
-      const refStat = refStatMap[arr[4]] || '相手のステータス';
-      const val = arr[6]; // 値レベル
-      const calcMethod = arr[5]; // 計算方法 (0:加算, 1:減算, 2:乗算, 3:除算)
-
-      let formulaStr = "";
-      if (calcMethod === '0') formulaStr = `相手の${refStat} + ${val}`;
-      else if (calcMethod === '1') formulaStr = `相手の${refStat} - ${val}`;
-      else if (calcMethod === '2') formulaStr = `相手の${refStat} × ${val}`;
-      else if (calcMethod === '3') formulaStr = `相手の${refStat} ÷ ${val}`;
-
-      mainEffect = `${target}の${stat}を (${formulaStr}) にする`;
-    } else {
-      const calcMap = { '0': `を ${arr[6]} 加算する`, '1': `を ${arr[6]} 減算する`, '2': `を ${arr[6]} 倍にする`, '3': `を ${arr[6]} で割る` };
-      mainEffect = `${target}の${stat}${calcMap[arr[3]] || ''}`;
-    }
-
-    return `${mainEffect}。${suffixStr}`;
-  } 
-  
-  else if (type === '2') { // 攻撃
-    const target = (arr[1] === '0') ? '自分' : '相手';
-    let mainEffect = "";
-    
-    if (arr[3] === '0') {
-      mainEffect = `${target}に ${arr[6]}（固定値）のダメージを与える`;
-    } else if (arr[3] === '1') {
-      mainEffect = `${target}に（パワーステータス × ${arr[6]}）のダメージを与える`;
-    } else if (arr[3] === '2') { // 相手参照
-      const refStatMap = { '0': '最大体力', '1': 'パワー', '2': 'ガード', '3': 'コミュ力', '4': '学力', '5': 'IQ', '6': '前ターンのダメージ量', '7': '実行時の体力' };
-      const refStat = refStatMap[arr[4]] || '相手のステータス';
-      const val = arr[6];
-      const calcMethod = arr[5];
-
-      let formulaStr = "";
-      if (calcMethod === '0') formulaStr = `相手の${refStat} + ${val}`;
-      else if (calcMethod === '1') formulaStr = `相手の${refStat} - ${val}`;
-      else if (calcMethod === '2') formulaStr = `相手の${refStat} × ${val}`;
-      else if (calcMethod === '3') formulaStr = `相手の${refStat} ÷ ${val}`;
-
-      mainEffect = `(${formulaStr}) のダメージを${target}に与える`;
-    }
-
-    return `${mainEffect}。${suffixStr}`;
-  } 
-  
-  else if (type === '3') { // システム介入
-    const target = targetMap[arr[1]] || '';
-    const sysMap = { '0': '防御力', '1': 'クリティカル率', '2': 'ミス率', '3': 'クリティカル倍率', '4': '実行時の体力' };
-    const sysIndex = arr[2];
-    const sysName = sysMap[sysIndex] || '';
-    const isPercentTarget = ['0', '1', '2', '3'].includes(sysIndex);
-    
-    let mainEffect = "";
-    if (arr[3] === '4') { // 相手参照
-      const refStatMap = { '0': '最大体力', '1': 'パワー', '2': 'ガード', '3': 'コミュ力', '4': '学力', '5': 'IQ', '6': '前ターンのダメージ量', '7': '実行時の体力' };
-      const refStat = refStatMap[arr[4]] || '相手のステータス';
-      const val = arr[6];
-      const calcMethod = arr[5];
-
-      let formulaStr = "";
-      if (calcMethod === '0') formulaStr = `相手の${refStat} + ${val}`;
-      else if (calcMethod === '1') formulaStr = `相手の${refStat} - ${val}`;
-      else if (calcMethod === '2') formulaStr = `相手の${refStat} × ${val}`;
-      else if (calcMethod === '3') formulaStr = `相手の${refStat} ÷ ${val}`;
-
-      mainEffect = `${target}の${sysName}を (${formulaStr}) にする`;
-    } else {
-      if (isPercentTarget && arr[3] === '0') {
-        mainEffect = `${target}の${sysName}を ${arr[6]}%にする`;
-      } else if (isPercentTarget && arr[3] === '1') {
-        mainEffect = `${target}の${sysName}を ${arr[6]}%減少させる`;
+    function buildDescription(arr) {
+      const type = arr[0];
+      const targetMap = { '0': '自分', '1': '相手', '2': '両方' };
+      
+      const prob = arr[7];
+      const condVal = arr[8];
+      const turnVal = arr[11];
+      
+      let suffixStr = "";
+      if (condVal === '1') {
+        suffixStr = `常に${prob}%の確率で発動。`;
       } else {
-        const calcMap = { '0': `に ${arr[6]} 加算する`, '1': `から ${arr[6]} 減算する`, '2': `を ${arr[6]} 倍にする`, '3': `を ${arr[6]} で割る` };
-        mainEffect = `${target}の${sysName}${calcMap[arr[3]] || ''}`;
+        const condMap = { '0': 'メーター満タン時', '2': 'HPに応じる条件' };
+        const condText = condMap[condVal] || '';
+        const turnText = (turnVal === '0') ? '永続的に' : `${turnVal}ターン分`;
+        suffixStr = `${condText}に${prob}%の確率で${turnText}発動。`;
       }
+
+      if (type === '1') {
+        const target = targetMap[arr[1]] || '';
+        const statMap = { '0': '体力', '1': 'パワー', '2': 'ガード', '3': 'コミュ力', '4': '学力', '5': 'IQ', '6': '全ステータス' };
+        const stat = statMap[arr[2]] || '';
+        
+        let mainEffect = "";
+        if (arr[3] === '4') {
+          const refStatMap = { '0': '体力', '1': 'パワー', '2': 'ガード', '3': 'コミュ力', '4': '学力', '5': 'IQ', '6': '前ターンのダメージ量' };
+          const refStat = refStatMap[arr[4]] || '相手のステータス';
+          const val = arr[6];
+          const calcMethod = arr[5];
+
+          let formulaStr = "";
+          if (calcMethod === '0') formulaStr = `相手の${refStat} + ${val}`;
+          else if (calcMethod === '1') formulaStr = `相手の${refStat} - ${val}`;
+          else if (calcMethod === '2') formulaStr = `相手の${refStat} × ${val}`;
+          else if (calcMethod === '3') formulaStr = `相手の${refStat} ÷ ${val}`;
+
+          mainEffect = `${target}の${stat}を (${formulaStr}) にする`;
+        } else {
+          const calcMap = { '0': `を ${arr[6]} 加算する`, '1': `を ${arr[6]} 減算する`, '2': `を ${arr[6]} 倍にする`, '3': `を ${arr[6]} で割る` };
+          mainEffect = `${target}の${stat}${calcMap[arr[3]] || ''}`;
+        }
+
+        return `${mainEffect}。${suffixStr}`;
+      } 
+      else if (type === '2') {
+        const target = (arr[1] === '0') ? '自分' : '相手';
+        let mainEffect = "";
+        
+        if (arr[3] === '0') {
+          mainEffect = `${target}に ${arr[6]}（固定値）のダメージを与える`;
+        } else if (arr[3] === '1') {
+          mainEffect = `${target}に（パワーステータス × ${arr[6]}）のダメージを与える`;
+        } else if (arr[3] === '2') {
+          const refStatMap = { '0': '最大体力', '1': 'パワー', '2': 'ガード', '3': 'コミュ力', '4': '学力', '5': 'IQ', '6': '前ターンのダメージ量', '7': '実行時の体力' };
+          const refStat = refStatMap[arr[4]] || '相手のステータス';
+          const val = arr[6];
+          const calcMethod = arr[5];
+
+          let formulaStr = "";
+          if (calcMethod === '0') formulaStr = `相手の${refStat} + ${val}`;
+          else if (calcMethod === '1') formulaStr = `相手の${refStat} - ${val}`;
+          else if (calcMethod === '2') formulaStr = `相手の${refStat} × ${val}`;
+          else if (calcMethod === '3') formulaStr = `相手の${refStat} ÷ ${val}`;
+
+          mainEffect = `(${formulaStr}) のダメージを${target}に与える`;
+        }
+
+        return `${mainEffect}。${suffixStr}`;
+      } 
+      else if (type === '3') {
+        const target = targetMap[arr[1]] || '';
+        const sysMap = { '0': '防御力', '1': 'クリティカル率', '2': 'ミス率', '3': 'クリティカル倍率', '4': '実行時の体力' };
+        const sysIndex = arr[2];
+        const sysName = sysMap[sysIndex] || '';
+        const isPercentTarget = ['0', '1', '2', '3'].includes(sysIndex);
+        
+        let mainEffect = "";
+        if (arr[3] === '4') {
+          const refStatMap = { '0': '最大体力', '1': 'パワー', '2': 'ガード', '3': 'コミュ力', '4': '学力', '5': 'IQ', '6': '前ターンのダメージ量', '7': '実行時の体力' };
+          const refStat = refStatMap[arr[4]] || '相手のステータス';
+          const val = arr[6];
+          const calcMethod = arr[5];
+
+          let formulaStr = "";
+          if (calcMethod === '0') formulaStr = `相手の${refStat} + ${val}`;
+          else if (calcMethod === '1') formulaStr = `相手の${refStat} - ${val}`;
+          else if (calcMethod === '2') formulaStr = `相手の${refStat} × ${val}`;
+          else if (calcMethod === '3') formulaStr = `相手の${refStat} ÷ ${val}`;
+
+          mainEffect = `${target}の${sysName}を (${formulaStr}) にする`;
+        } else {
+          if (isPercentTarget && arr[3] === '0') {
+            mainEffect = `${target}の${sysName}を ${arr[6]}%にする`;
+          } else if (isPercentTarget && arr[3] === '1') {
+            mainEffect = `${target}の${sysName}を ${arr[6]}%減少させる`;
+          } else {
+            const calcMap = { '0': `に ${arr[6]} 加算する`, '1': `から ${arr[6]} 減算する`, '2': `を ${arr[6]} 倍にする`, '3': `を ${arr[6]} で割る` };
+            mainEffect = `${target}の${sysName}${calcMap[arr[3]] || ''}`;
+          }
+        }
+
+        return `${mainEffect}。${suffixStr}`;
+      } 
+      else if (type === '4') {
+        const target = targetMap[arr[1]] || '';
+        const menu = arr[2];
+
+        if (menu === '0') {
+          const statMap = { '0': '体力', '1': 'パワー', '2': 'ガード', '3': 'コミュ力', '4': '学力', '5': 'IQ', '6': '全ステータス合計' };
+          const condCompMap = { '0': '以上', '1': '以下', '2': '超過', '3': '未満', '4': '等しい' };
+          
+          // 修正点: 種別4-idx4でカスタム数値が選ばれている場合の文章生成
+          const valText = (arr[4] === '0') ? '自分の数値' : `カスタム数値(${arr[4]})`;
+          return `【条件判定】${target}の${statMap[arr[3]] || ''}が${valText} ${condCompMap[arr[5]] || ''} の場合、以降のコマンドを実行する。`;
+        } else if (menu === '1') {
+          const inMap = { '0': '含まれる', '1': '含まれない' };
+          return `【条件判定】現在の場所が リスト${arr[6]} に${inMap[arr[7]] || ''}場合、以降のコマンドを実行する。`;
+        } else if (menu === '2') {
+          const inMap = { '0': '含まれる', '1': '含まれない' };
+          return `【条件判定】相手のIDが リスト${arr[6]} に${inMap[arr[7]] || ''}場合、以降のコマンドを実行する。`;
+        }
+      }
+
+      return "説明文を生成できませんでした。";
     }
-
-    return `${mainEffect}。${suffixStr}`;
-  } 
-  
-  else if (type === '4') { // 条件分岐
-    const target = targetMap[arr[1]] || '';
-    const menu = arr[2];
-
-    if (menu === '0') {
-      const statMap = { '0': '体力', '1': 'パワー', '2': 'ガード', '3': 'コミュ力', '4': '学力', '5': 'IQ', '6': '全ステータス合計' };
-      const condCompMap = { '0': '以上', '1': '以下', '2': '超過', '3': '未満', '4': '等しい' };
-      const valText = (arr[4] === '0') ? '自分の数値' : `カスタム数値(${arr[6]})`;
-      return `【条件判定】${target}の${statMap[arr[3]] || ''}が${valText} ${condCompMap[arr[5]] || ''} の場合、以降のコマンドを実行する。`;
-    } else if (menu === '1') {
-      const inMap = { '0': '含まれる', '1': '含まれない' };
-      return `【条件判定】現在の場所が リスト${arr[6]} に${inMap[arr[7]] || ''}場合、以降のコマンドを実行する。`;
-    } else if (menu === '2') {
-      const inMap = { '0': '含まれる', '1': '含まれない' };
-      return `【条件判定】相手のIDが リスト${arr[6]} に${inMap[arr[7]] || ''}場合、以降のコマンドを実行する。`;
-    }
-  }
-
-  return "説明文を生成できませんでした。";
-}
 
     function copyToClipboard() {
       const outputText = document.getElementById('output').textContent;
@@ -492,7 +514,6 @@ function buildDescription(arr) {
       });
     }
 
-    // 初期表示実行
     renderForm();
   </script>
 </body>
