@@ -192,11 +192,11 @@
         idx11: { name: "継続ターン数", type: "custom_turn" }
       },
       4: {
-        idx1: { name: "対象", options: ["0:自分", "1:相手"] },
-        idx2: { name: "メニュー", options: ["0:ステータス参照", "1:場所", "2:相手のID"] },
+        idx1: { name: "対象", options: ["0:自分", "1:相手"], dependsOn: { idx: 2, val: ["0", "1", "2", "3"] } },
+        idx2: { name: "メニュー", options: ["0:ステータス参照", "1:場所", "2:相手のID", "3:実行時の体力", "4:else(直前の条件分岐が成立しない場合)"] },
         idx3: { name: "対象ステータス", options: ["0:体力", "1:パワー", "2:ガード", "3:コミュ力", "4:学力", "5:IQ", "6:合計"], dependsOn: { idx: 2, val: ["0"] } },
-        idx4: { name: "条件設定数値", type: "custom_num", options: ["0:自分の数値", "custom:カスタム数値"], dependsOn: { idx: 2, val: ["0"] } },
-        idx5: { name: "条件", options: ["0:以上", "1:以下", "2:超過", "3:未満", "4:等しい"], dependsOn: { idx: 2, val: ["0"] } },
+        idx4: { name: "条件設定数値", type: "custom_num", options: ["0:自分の数値", "custom:カスタム数値"], dependsOn: { idx: 2, val: ["0", "3"] } },
+        idx5: { name: "条件", options: ["0:以上", "1:以下", "2:超過", "3:未満", "4:等しい"], dependsOn: { idx: 2, val: ["0", "3"] } },
         idx6: { name: "リスト", type: "list_text", dependsOn: { idx: 2, val: ["1", "2"] } },
         idx7: { name: "条件", options: ["0:リストに含まれる", "1:リストに含まれない"], dependsOn: { idx: 2, val: ["1", "2"] } },
         idx8: { name: "発動フラグ", options: ["0:trueの場合のみそれ以下を発動"] },
@@ -353,6 +353,16 @@
         const item = specData[type][`idx${i}`];
         let val = "0";
 
+        // 表示されていない項目(条件に合わず隠れているもの)は、前に入力した値が残らないよう0埋めにする
+        const hidden = item.dependsOn && (() => {
+          const t = document.getElementById(`input-idx${item.dependsOn.idx}`);
+          return !(t && item.dependsOn.val.includes(t.value));
+        })();
+        if (hidden) {
+          resultArray.push(item.type === 'list_text' ? '()' : '0');
+          continue;
+        }
+
         if (item.type === 'list_text') {
           const elem = document.getElementById(`input-idx${i}`);
           const raw = elem ? elem.value.trim() : '';
@@ -504,6 +514,12 @@
         } else if (menu === '2') {
           const inMap = { '0': '含まれる', '1': '含まれない' };
           return `【条件判定】相手のIDが リスト${arr[6]} に${inMap[arr[7]] || ''}場合、以降のコマンドを実行する。`;
+        } else if (menu === '3') {
+          const condCompMap = { '0': '以上', '1': '以下', '2': '超過', '3': '未満', '4': '等しい' };
+          const valText = (arr[4] === '0') ? '自分の体力' : `カスタム数値(${arr[4]})`;
+          return `【条件判定】${target}の実行時の体力が${valText} ${condCompMap[arr[5]] || ''} の場合、以降のコマンドを実行する。`;
+        } else if (menu === '4') {
+          return `【条件判定】直前の条件分岐が成立しない場合(else)、以降のコマンドを実行する。`;
         }
       }
 
