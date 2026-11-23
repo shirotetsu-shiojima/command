@@ -111,6 +111,7 @@
         <option value="2">2:攻撃</option>
         <option value="3">3:システム介入</option>
         <option value="4">4:条件分岐</option>
+        <option value="5">5:カード介入</option>
       </select>
     </div>
   </div>
@@ -171,6 +172,19 @@
         idx4: { name: "参照ステータス", options: ["0:最大体力", "1:パワー", "2:ガード", "3:コミュ力", "4:学力", "5:IQ", "6:前ターンのダメージ量", "7:実行時の体力"], dependsOn: { idx: 3, val: ["4"] } },
         idx5: { name: "計算方法", options: ["0:加算", "1:減算", "2:乗算", "3:除算"], dependsOn: { idx: 3, val: ["4"] } },
         idx6: { name: "値レベル", type: "number" },
+        idx7: { name: "発動確率(0~100)", type: "number", min: 0, max: 100 },
+        idx8: { name: "発動条件", options: ["0:メーター満タン時", "1:永続", "2:HPに応じる"] },
+        idx9: { name: "HP取得対象", options: ["0:自分", "1:相手"], dependsOn: { idx: 8, val: ["2"] } },
+        idx10: { name: "HP残率指定", type: "number", min: 0, max: 100, dependsOn: { idx: 8, val: ["2"] } },
+        idx11: { name: "継続ターン数", type: "custom_turn" }
+      },
+      5: {
+        idx1: { name: "操作", options: ["0:相手のカードを無効化", "1:相手のカードをコピー"] },
+        idx2: { name: "カードの種類", options: ["0:すべてのカード", "1:不死鳥", "2:天変地異", "3:金剛不壊", "4:絶対領域", "5:ジャイアントキリング", "6:招き猫", "7:スタートダッシュ", "8:ラストスパート", "9:カウンター", "10:リベンジ", "11:連勝ブースト", "12:逆境強化", "13:ビギナーズラック"] },
+        idx3: { name: "未使用(0埋め)", type: "fixed_zero" },
+        idx4: { name: "未使用(0埋め)", type: "fixed_zero" },
+        idx5: { name: "未使用(0埋め)", type: "fixed_zero" },
+        idx6: { name: "未使用(0埋め)", type: "fixed_zero" },
         idx7: { name: "発動確率(0~100)", type: "number", min: 0, max: 100 },
         idx8: { name: "発動条件", options: ["0:メーター満タン時", "1:永続", "2:HPに応じる"] },
         idx9: { name: "HP取得対象", options: ["0:自分", "1:相手"], dependsOn: { idx: 8, val: ["2"] } },
@@ -491,6 +505,13 @@
           const inMap = { '0': '含まれる', '1': '含まれない' };
           return `【条件判定】相手のIDが リスト${arr[6]} に${inMap[arr[7]] || ''}場合、以降のコマンドを実行する。`;
         }
+      }
+
+      else if (type === '5') {
+        const cardMap = { '1': '不死鳥', '2': '天変地異', '3': '金剛不壊', '4': '絶対領域', '5': 'ジャイアントキリング', '6': '招き猫', '7': 'スタートダッシュ', '8': 'ラストスパート', '9': 'カウンター', '10': 'リベンジ', '11': '連勝ブースト', '12': '逆境強化', '13': 'ビギナーズラック' };
+        const cardText = (arr[2] === '0') ? '相手のすべてのカード' : `相手のカード「${cardMap[arr[2]] || ''}」`;
+        const mainEffect = (arr[1] === '0') ? `${cardText}を無効化する` : `${cardText}をコピーして自分も使う`;
+        return `${mainEffect}。${suffixStr}`;
       }
 
       return "説明文を生成できませんでした。";
